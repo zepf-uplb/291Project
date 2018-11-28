@@ -1,19 +1,22 @@
-import tensorflow as tf
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense
+from tensorflow.keras import optimizers
 from tensorflow.keras.callbacks import Callback
 from itertools import islice
+import matplotlib.pyplot as plt
 import numpy
 import os
 import time
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 numpy.random.seed(7)
-SAMPLE_SIZE = 10
+SAMPLE_SIZE = 1000
 MODIFIER = 16
+HIDDEN = 1280
+THRESHOLD = 0.01
 
 class EarlyStoppingByLoss(Callback):
-    def __init__(self, monitor='loss', value=0.01, verbose=0):
+    def __init__(self, monitor='loss', value=THRESHOLD, verbose=0):
         super(Callback, self).__init__()
         self.monitor = monitor
         self.value = value
@@ -42,11 +45,11 @@ def main():
 		for j in range(len(rawX[i])):
 			X[i][j] = ord(rawX[i][j])
 
-	norm =  numpy.linalg.norm(X)
+	'''norm =  numpy.linalg.norm(X)
 
 	for i in range(len(X)):
 		for j in range(len(X[i])):
-			X[i][j] = X[i][j]/norm
+			X[i][j] = X[i][j]/norm'''
 
 
 	with open("md5.txt", "r") as f:
@@ -60,36 +63,54 @@ def main():
 		for j in range(len(rawY[i])):
 			Y[i][j] = ord(rawY[i][j])
 
-
 	model = Sequential()
-	model.add(Dense(len(X[0]), input_shape=(len(X[0]),), activation='relu'))
-	model.add(Dense(len(X[0])*MODIFIER, activation='relu'))
-	model.add(Dense(len(Y[0])*MODIFIER, activation='relu'))
-	model.add(Dense(len(Y[0])))
+	model.add(Dense(len(X[0]), input_shape=(len(X[0]),), activation='elu'))
+	#model.add(Dense(len(X[0])*MODIFIER, activation='elu'))
+	#model.add(Dense(len(X[0])*len(Y[0]), activation='elu'))
+	#model.add(Dense(len(Y[0])*MODIFIER, activation='elu'))
+	model.add(Dense(HIDDEN, activation='elu'))
+	model.add(Dense(len(Y[0]), activation='linear'))
 
-	model.compile(loss='mean_squared_error', optimizer='adam')
+	adam = optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=True)
+	model.compile(loss='mean_squared_error', optimizer=adam)
 
 	cb = EarlyStoppingByLoss()
 
 	start_time = time.time()
-	model.fit(X, Y, epochs=9999999999999999999, callbacks=[cb])
+	history = model.fit(X, Y, epochs=9999999999999999999, callbacks=[cb])
 	stop_time = time.time()
 
 	pred =  model.predict(X)
 
-	print("Actual Values: ")
-	print(Y)
+	total = 0
+	correct = 0
 
-	print("Predicted Values: ")
-	print(numpy.round(pred))
+	for i in range(len(Y)):
+		wrong = False
+		for j in range(len(Y[0])):
+			if Y[i][j] != numpy.round(pred[i][j]):
+				wrong = True
+				break
+		if not wrong:
+			correct += 1
+		total += 1
+
+	print("Precision: " + str(correct) + "/" +str(total))
 
 	print("Time Training: " + str(stop_time-start_time) + " seconds")
 
 	model.save("my_model.h5")
 
+	plt.plot(history.history['loss'])
+	plt.title('Loss Decay')
+	plt.ylabel('Loss')
+	plt.ylim(0,500)
+	plt.xlabel('Epoch')
+	plt.show()
+
 if __name__ == "__main__":
 	main()
-
+''
 
 '''
 model = load_model("my_model.h5")
